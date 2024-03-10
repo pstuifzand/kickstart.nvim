@@ -201,6 +201,8 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   end,
 })
 
+vim.filetype.add { extension = { templ = 'templ' } }
+
 -- [[ Install `lazy.nvim` plugin manager ]]
 --    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
 local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
@@ -407,6 +409,9 @@ require('lazy').setup({
       'williamboman/mason-lspconfig.nvim',
       'WhoIsSethDaniel/mason-tool-installer.nvim',
 
+      -- Additional lua configuration, makes nvim stuff amazing!
+      'folke/neodev.nvim',
+
       -- Useful status updates for LSP.
       -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
       { 'j-hui/fidget.nvim', opts = {} },
@@ -437,7 +442,11 @@ require('lazy').setup({
       -- If you're wondering about lsp vs treesitter, you can check out the wonderfully
       -- and elegantly composed help section, `:help lsp-vs-treesitter`
 
-      --  This function gets run when an LSP attaches to a particular buffer.
+      -- First, enable neodev. This is helpful for auto-configuring the Lua LSP
+      -- to understand your Neovim environment
+      require('neodev').setup()
+
+      --  This function gets run when an LSP connects to a particular buffer.
       --    That is to say, every time a new file is opened that is associated with
       --    an lsp (for example, opening `main.rs` is associated with `rust_analyzer`) this
       --    function will be executed to configure the current buffer
@@ -533,18 +542,36 @@ require('lazy').setup({
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
         -- clangd = {},
-        -- gopls = {},
-        -- pyright = {},
+        gopls = {},
+        pyright = {},
         -- rust_analyzer = {},
+        -- html = { filetypes = { 'html', 'twig', 'hbs'} },
+        html = {
+          filetypes = { 'html', 'templ' },
+        },
+        htmx = {
+          filetypes = { 'html', 'templ' },
+        },
+        tailwindcss = {
+          filetypes = { 'html', 'templ' },
+          init_options = {
+            userLanguages = { templ = 'html' },
+          },
+          settings = {
+            includedLanguages = {
+              templ = 'html',
+            },
+          },
+        },
+        volar = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
-        -- Some languages (like typescript) have entire language plugins that can be useful:
+        -- If you use something like typescript, where the tooling is as bad as the language,
+        -- then you might need to install and configure something like this:
         --    https://github.com/pmizio/typescript-tools.nvim
         --
-        -- But for many setups, the LSP (`tsserver`) will work just fine
+        -- If you only have simple needs for typescript, then you can probably just use tsserver
         -- tsserver = {},
-        --
-
         lua_ls = {
           -- cmd = {...},
           -- filetypes { ...},
@@ -554,6 +581,7 @@ require('lazy').setup({
               runtime = { version = 'LuaJIT' },
               workspace = {
                 checkThirdParty = false,
+                telemetry = { enable = false },
                 -- Tells lua_ls where to find all the Lua files that you have loaded
                 -- for your neovim configuration.
                 library = {
@@ -569,6 +597,11 @@ require('lazy').setup({
               -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
               -- diagnostics = { disable = { 'missing-fields' } },
             },
+          },
+        },
+        yamlls = {
+          yaml = {
+            keyOrdering = false,
           },
         },
       }
@@ -620,6 +653,7 @@ require('lazy').setup({
         -- You can use a sub-list to tell conform to run *until* a formatter
         -- is found.
         -- javascript = { { "prettierd", "prettier" } },
+        templ = { 'templ' },
       },
     },
   },
@@ -714,6 +748,33 @@ require('lazy').setup({
           { name = 'path' },
         },
       }
+
+      cmp.setup.filetype('gitcommit', {
+        sources = cmp.config.sources({
+          { name = 'git' }
+        }, {
+            { name = 'buffer' }
+          })
+      })
+
+      -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
+      cmp.setup.cmdline({ '/', '?' }, {
+        mapping = cmp.mapping.preset.cmdline(),
+        sources = {
+          { name = 'buffer' }
+        }
+      })
+
+      -- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
+      cmp.setup.cmdline(':', {
+        mapping = cmp.mapping.preset.cmdline(),
+        sources = cmp.config.sources({
+          { name = 'path' }
+        }, {
+            { name = 'cmdline' }
+          })
+      })
+
     end,
   },
 
@@ -799,6 +860,11 @@ require('lazy').setup({
       --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
     end,
   },
+  'nvim-treesitter/playground',
+
+  -- The following two comments only work if you have downloaded the kickstart repo, not just copy pasted the
+  -- init.lua. If you want these files, they are in the repository, so you can just download them and
+  -- put them in the right spots if you want.
 
   -- The following two comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
@@ -810,14 +876,14 @@ require('lazy').setup({
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
   -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.indent_line',
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
-  --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   --    For additional information, see `:help lazy.nvim-lazy.nvim-structuring-your-plugins`
   -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
 }, {
   ui = {
     -- If you have a Nerd Font, set icons to an empty table which will use the
@@ -838,6 +904,13 @@ require('lazy').setup({
       lazy = '💤 ',
     },
   },
+})
+
+local git_group = vim.api.nvim_create_augroup('Git', { clear = true })
+vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead' }, {
+  command = "0r!git rev-parse --symbolic-full-name --abbrev-ref HEAD | tr '[:lower:]' '[:upper:]' | egrep -o \"^[A-Z][A-Z0-9]+-[0-9]+\"",
+  group = git_group,
+  pattern = vim.fn.expand 'COMMIT_EDITMSG',
 })
 
 -- The line beneath this is called `modeline`. See `:help modeline`
